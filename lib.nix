@@ -246,7 +246,7 @@ let
           exec ${exePath}${flagsString} "$@"
         ''
       ),
-    }:
+    }@args:
     let
       # Extract binary name from the exe path
       exePath = lib.getExe package;
@@ -384,6 +384,14 @@ let
                 preHook
                 aliases
                 ;
+              override =
+                overrideArgs:
+                wrapPackage (
+                  args
+                  // {
+                    package = package.override overrideArgs;
+                  }
+                );
             };
           # Pass through original attributes
           meta = package.meta or { };
