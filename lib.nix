@@ -109,6 +109,14 @@ let
                 This will always contain options, config and settings, so these are reserved names and cannot be used here.
               '';
             };
+            filesToPatch = lib.mkOption {
+              type = lib.types.listOf lib.types.str;
+              default = [ "share/applications/*.desktop" ];
+              description = ''
+                List of file paths (glob patterns) relative to package root to patch for self-references.
+                Desktop files are patched by default to update Exec= and Icon= paths.
+              '';
+            };
           };
         }
       ];
@@ -166,6 +174,7 @@ let
           flagSeparator = "=";
           flags = config.flags;
           env = config.env;
+          filesToPatch = config.filesToPatch;
           passthru = {
             inherit configuration settings;
           }

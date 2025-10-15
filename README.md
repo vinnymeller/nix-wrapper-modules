@@ -136,6 +136,7 @@ Built-in options (always available):
 - `flags`: Command-line flags
 - `env`: Environment variables
 - `passthru`: Additional passthru attributes
+- `filesToPatch`: List of file paths (glob patterns) to patch for self-references (default: `["share/applications/*.desktop"]`)
 
 Custom types:
 - `wlib.types.file`: File type with `content` and `path` options
