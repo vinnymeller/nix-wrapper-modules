@@ -187,6 +187,7 @@ let
     - `preHook`: Shell script to run before executing the command (optional)
     - `passthru`: Attribute set to pass through to the wrapped derivation (optional)
     - `aliases`: List of additional names to symlink to the wrapped executable (optional)
+    - `filesToPatch`: List of file paths (glob patterns) to patch for self-references (optional, defaults to ["share/applications/*.desktop"])
     - `wrapper`: Custom wrapper function (optional, defaults to exec'ing the original binary with flags)
       - Called with { env, flags, envString, flagsString, exePath, preHook }
 
@@ -232,6 +233,8 @@ let
       preHook ? "",
       passthru ? { },
       aliases ? [ ],
+      filesToPatch ? [ "share/applications/*.desktop" ],
+      # List of file paths relative to package root to patch for self-references (e.g., ["bin/*", "lib/*.sh"])
       wrapper ? (
         {
           exePath,
@@ -286,7 +289,7 @@ let
           ;
       };
 
-      # Multi-output aware symlink join function
+      # Multi-output aware symlink join function with optional file patching
       multiOutputSymlinkJoin =
         {
           name,
@@ -297,11 +300,14 @@ let
           meta ? { },
           aliases ? [ ],
           binName ? null,
+          filesToPatch ? [ ],
           ...
         }@args:
         pkgs.stdenv.mkDerivation (
           {
             inherit name outputs;
+
+            nativeBuildInputs = lib.optionals (filesToPatch != [ ]) [ pkgs.replace ];
 
             buildCommand = ''
               # Symlink all paths to the main output
@@ -309,6 +315,34 @@ let
               for path in ${lib.concatStringsSep " " (map toString paths)}; do
                 ${pkgs.lndir}/bin/lndir -silent "$path" $out
               done
+
+              # Patch specified files to replace references to the original package with the wrapped one
+              ${lib.optionalString (filesToPatch != [ ]) ''
+                echo "Patching self-references in specified files..."
+                oldPath="${package}"
+                newPath="$out"
+
+                # Process each file pattern
+                ${lib.concatMapStringsSep "\n" (pattern: ''
+                  for file in $out/${pattern}; do
+                    if [[ -L "$file" ]]; then
+                      # It's a symlink, we need to resolve it
+                      target=$(readlink -f "$file")
+
+                      # Check if the file contains the old path
+                      if grep -qF "$oldPath" "$target" 2>/dev/null; then
+                        echo "Patching $file"
+                        # Remove symlink and create a real file with patched content
+                        rm "$file"
+                        # Use replace-literal which works for both text and binary files
+                        replace-literal "$oldPath" "$newPath" < "$target" > "$file"
+                        # Preserve permissions
+                        chmod --reference="$target" "$file"
+                      fi
+                    fi
+                  done
+                '') filesToPatch}
+              ''}
 
               # Create symlinks for aliases
               ${lib.optionalString (aliases != [ ] && binName != null) ''
@@ -345,6 +379,7 @@ let
             "meta"
             "aliases"
             "binName"
+            "filesToPatch"
           ])
         );
 
@@ -373,7 +408,12 @@ let
             package
           ];
           outputs = if package ? outputs then package.outputs else [ "out" ];
-          inherit originalOutputs aliases binName;
+          inherit
+            originalOutputs
+            aliases
+            binName
+            filesToPatch
+            ;
           passthru =
             (package.passthru or { })
             // passthru

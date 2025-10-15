@@ -111,6 +111,9 @@ Arguments:
 - `preHook`: Shell script executed before the command (default: `""`)
 - `passthru`: Additional attributes for the derivation's passthru (default: `{}`)
 - `aliases`: List of additional symlink names for the executable (default: `[]`)
+- `filesToPatch`: List of file paths (glob patterns) relative to package root to patch for self-references (default: `["share/applications/*.desktop"]`)
+  - Example: `["bin/*", "lib/*.sh"]` to replace original package paths with wrapped package paths
+  - Desktop files are patched by default to update Exec= and Icon= paths
 - `wrapper`: Custom wrapper function (optional, overrides default exec wrapper)
 
 The function:
