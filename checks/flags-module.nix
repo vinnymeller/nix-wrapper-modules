@@ -15,7 +15,7 @@ let
     }
   );
 
-  wrappedPackage = helloModule.apply { inherit pkgs; };
+  wrappedPackage = (helloModule.apply { inherit pkgs; }).wrapper;
 
 in
 pkgs.runCommand "module-flags-test" { } ''

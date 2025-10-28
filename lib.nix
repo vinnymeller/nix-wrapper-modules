@@ -59,7 +59,7 @@ let
       # This will return a derivation that wraps the hello package with the --greeting flag set to "hi".
   */
   wrapModule =
-    packageInterface:
+    moduleInterface:
     let
       wrapperLib = {
         types = {
@@ -180,6 +180,30 @@ let
                   Example: [ "bin/unwanted-tool" "share/applications/*.desktop" ]
                 '';
               };
+              wrapper = lib.mkOption {
+                type = lib.types.package;
+                readOnly = true;
+                description = ''
+                  The wrapped package created by wrapPackage. This wraps the configured package
+                  with the specified flags, environment variables, runtime dependencies, and other
+                  options in a portable way.
+                '';
+                default = wrapPackage {
+                  pkgs = config.pkgs;
+                  package = config.package;
+                  runtimeInputs = config.extraPackages;
+                  flags = config.flags;
+                  flagSeparator = config.flagSeparator;
+                  args = config.args;
+                  env = config.env;
+                  filesToPatch = config.filesToPatch;
+                  filesToExclude = config.filesToExclude;
+                  passthru = {
+                    configuration = config;
+                  }
+                  // config.passthru;
+                };
+              };
             };
           }
         )
@@ -193,7 +217,7 @@ let
               {
                 options.interface = lib.mkOption {
                   type = lib.types.deferredModule;
-                  default = packageInterface;
+                  default = moduleInterface;
                 };
                 options.settings = lib.mkOption {
                   type = lib.types.deferredModule;
@@ -231,21 +255,7 @@ let
           configuration = eval settings;
           config = configuration.config.result.config;
         in
-        wrapPackage {
-          pkgs = config.pkgs;
-          package = config.package;
-          runtimeInputs = config.extraPackages;
-          flags = config.flags;
-          flagSeparator = config.flagSeparator;
-          args = config.args;
-          env = config.env;
-          filesToPatch = config.filesToPatch;
-          filesToExclude = config.filesToExclude;
-          passthru = {
-            inherit configuration settings;
-          }
-          // config.passthru;
-        };
+        config;
     };
 
   /**

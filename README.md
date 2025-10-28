@@ -23,10 +23,10 @@ This library provides two main components:
 ```nix
 {
   inputs.wrappers.url = "github:lassulus/wrappers";
-  
+
   outputs = { self, nixpkgs, wrappers }: {
-    packages.x86_64-linux.default = 
-      wrappers.wrapperModules.mpv.apply {
+    packages.x86_64-linux.default =
+      (wrappers.wrapperModules.mpv.apply {
         pkgs = nixpkgs.legacyPackages.x86_64-linux;
         scripts = [ pkgs.mpvScripts.mpris ];
         "mpv.conf".content = ''
@@ -37,7 +37,7 @@ This library provides two main components:
           WHEEL_UP seek 10
           WHEEL_DOWN seek -10
         '';
-      };
+      }).wrapper;
   };
 }
 ```
@@ -132,7 +132,8 @@ The function:
 Creates a reusable wrapper module with:
 - Type-safe configuration options via the module system
 - `options`: Exposed options for documentation generation
-- `apply`: Function to instantiate the wrapper with settings
+- `apply`: Function to instantiate the wrapper with settings, returning a config object
+  - Access the wrapped package via the `wrapper` attribute of the returned config
 
 Built-in options (always available):
 - `pkgs`: nixpkgs instance (required)
@@ -144,6 +145,8 @@ Built-in options (always available):
 - `env`: Environment variables
 - `passthru`: Additional passthru attributes
 - `filesToPatch`: List of file paths (glob patterns) to patch for self-references (default: `["share/applications/*.desktop"]`)
+- `filesToExclude`: List of file paths (glob patterns) to exclude from the wrapped package (default: `[]`)
+- `wrapper`: The resulting wrapped package (read-only, auto-generated from other options)
 
 Custom types:
 - `wlib.types.file`: File type with `content` and `path` options
@@ -165,7 +168,7 @@ The wrapper module system integrates with NixOS module evaluation:
 Wraps mpv with configuration file support and script management:
 
 ```nix
-wrappers.wrapperModules.mpv.apply {
+(wrappers.wrapperModules.mpv.apply {
   pkgs = pkgs;
   scripts = [ pkgs.mpvScripts.mpris pkgs.mpvScripts.thumbnail ];
   "mpv.conf".content = ''
@@ -179,7 +182,7 @@ wrappers.wrapperModules.mpv.apply {
   extraFlags = {
     "--save-position-on-quit" = {};
   };
-}
+}).wrapper
 ```
 
 ### notmuch Module
@@ -187,7 +190,7 @@ wrappers.wrapperModules.mpv.apply {
 Wraps notmuch with INI-based configuration:
 
 ```nix
-wrappers.wrapperModules.notmuch.apply {
+(wrappers.wrapperModules.notmuch.apply {
   pkgs = pkgs;
   config = {
     database = {
@@ -199,7 +202,7 @@ wrappers.wrapperModules.notmuch.apply {
       primary_email = "john@example.com";
     };
   };
-}
+}).wrapper
 ```
 
 ## Long-term Goals

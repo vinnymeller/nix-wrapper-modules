@@ -4,9 +4,10 @@
 }:
 
 let
-  helixWrapped = self.wrapperModules.helix.apply {
-    inherit pkgs;
-  };
+  helixWrapped =
+    (self.wrapperModules.helix.apply {
+      inherit pkgs;
+    }).wrapper;
 
 in
 pkgs.runCommand "helix-test" { } ''

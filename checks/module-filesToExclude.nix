@@ -58,7 +58,7 @@ let
     ];
   };
 
-  wrappedPackage = testModule.apply { inherit pkgs; };
+  wrappedPackage = (testModule.apply { inherit pkgs; }).wrapper;
 
 in
 pkgs.runCommand "module-filesToExclude-test" { } ''
