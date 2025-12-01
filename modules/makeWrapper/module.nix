@@ -7,10 +7,12 @@
 }:
 {
   options.argv0type = lib.mkOption {
-    type = lib.types.enum [
-      "resolve"
-      "inherit"
-    ];
+    type =
+      with lib.types;
+      either (enum [
+        "resolve"
+        "inherit"
+      ]) (functionTo str);
     default = "inherit";
     description = ''
       `argv0` overrides this option if not null or unset
@@ -22,17 +24,29 @@
 
       Values:
 
-      `"inherit"`:
-      `--inherit-argv0`
+      - `"inherit"`:
 
       The executable inherits argv0 from the wrapper.
       Use instead of `--argv0 '$0'`.
 
-      `"resolve"`:
-
-      `--resolve-argv0`
+      - `"resolve"`:
 
       If argv0 does not include a "/" character, resolve it against PATH.
+
+      - Function form: `str -> str`
+
+      This one works only in the nix implementation. The others will treat it as `inherit`
+
+      Rather than calling exec, you get the command plus all its flags supplied,
+      and you can choose how to run it.
+
+      e.g. `command_string: "eval \"$(''${command_string})\";`
+
+      It will also be added to the end of the overall `DAL`,
+      with the name `NIX_RUN_MAIN_PACKAGE`
+
+      Thus, you can make things run after it,
+      but by default it is still last.
     '';
   };
   options.argv0 = lib.mkOption {
