@@ -25,8 +25,20 @@ let
           ) defs
         );
     };
-  configDag = wlib.types.dagOf // {
-    extraOptions = {
+  disableableDagOf = wlib.types.dagOf // {
+    extraOptions.disabled = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = "Disable the value";
+    };
+  };
+  configDagOf = disableableDagOf // {
+    extraOptions = disableableDagOf.extraOptions // {
+      plugin = lib.mkOption {
+        type = lib.types.nullOr wlib.types.stringable;
+        default = null;
+        description = "You can add plugins to the config entries directly instead of `config.plugins`";
+      };
       opts = lib.mkOption {
         type = luaType;
         default = { };
@@ -44,7 +56,11 @@ let
       };
     };
   };
-  initDal = wlib.dag.sortAndUnwrap { dag = config.luaInit; };
+  initDal =
+    if builtins.isString config.luaInit then
+      config.luaInit
+    else
+      builtins.filter (v: !v.disabled) (wlib.dag.sortAndUnwrap { dag = config.luaInit; });
   hasFnl = builtins.any (v: v.type == "fnl") initDal;
   basePluginDir = "${placeholder "out"}/${config.binName}-plugins";
 in
@@ -77,7 +93,7 @@ in
     '';
   };
   options.plugins = lib.mkOption {
-    type = wlib.types.dagOf wlib.types.stringable;
+    type = disableableDagOf wlib.types.stringable;
     default = { };
     description = ''
       Will be symlinked into a directory added to the `LUA_PATH` and `LUA_CPATH`
@@ -88,7 +104,7 @@ in
     '';
   };
   options.luaInit = lib.mkOption {
-    type = lib.types.either lib.types.str (configDag lib.types.lines);
+    type = lib.types.either lib.types.str (configDagOf lib.types.lines);
     default = { };
     description = builtins.readFile ./luaInit-desc.md;
   };
@@ -153,8 +169,8 @@ in
       ];
 
       nixInit = (
-        if builtins.isString config.luaInit then
-          config.luaInit
+        if builtins.isString initDal then
+          initDal
         else if hasFnl then
           /* fennel */ ''
             ((fn [hooks]
@@ -222,11 +238,20 @@ in
           name;
       mkLinkCommand =
         name: plugin:
-        "ln -s ${lib.escapeShellArg plugin} ${lib.escapeShellArg "${basePluginDir}/${errORname name}"}";
-      linkCommands = wlib.dag.sortAndUnwrap {
-        dag = config.plugins;
-        mapIfOk = v: mkLinkCommand v.name v.data;
-      };
+        "ln -sf ${lib.escapeShellArg plugin} ${lib.escapeShellArg "${basePluginDir}/${errORname name}"}";
+      linkCommands = lib.pipe initDal [
+        (v: if builtins.isString v then [ ] else v)
+        (map (v: if v.plugin or null != null then v // { data = v.plugin; } else null))
+        (builtins.filter (v: v != null))
+        (
+          dal:
+          wlib.dag.sortAndUnwrap {
+            dag = builtins.filter (v: !v.disabled) (wlib.dag.dagToDal config.plugins) ++ dal;
+            mapIfOk = v: (mkLinkCommand v.name v.data);
+          }
+        )
+        (builtins.concatStringsSep "\n")
+      ];
     in
     /* bash */ ''
       runHook preBuild
@@ -235,7 +260,7 @@ in
         if hasFnl then " | ${pkgs.luajitPackages.fennel}/bin/fennel --compile - " else " "
       }> ${lib.escapeShellArg "${placeholder "out"}/${config.binName}-rc.lua"}
       { [ -e "$nixLuaInfoPath" ] && cat "$nixLuaInfoPath" || echo "$nixLuaInfo"; } > ${lib.escapeShellArg "${basePluginDir}/${config.infopath}.lua"}
-      ${builtins.concatStringsSep "\n" linkCommands}
+      ${linkCommands}
       runHook postBuild
     '';
   config.prefixVar =
