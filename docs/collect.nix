@@ -64,9 +64,18 @@ let
       + (builtins.concatStringsSep " " commands)
     );
 
-  module_desc = import ./helper-mod-desc.nix;
-
-  module_docs = builtins.mapAttrs (buildModuleDocs "modules" module_desc) wlib.modules;
+  module_desc =
+    let
+      files = builtins.readDir ./modules;
+      mdFiles = builtins.filter (name: builtins.match ".*\\.md$" name != null) (builtins.attrNames files);
+    in
+    builtins.listToAttrs (
+      map (name: {
+        name = builtins.substring 0 (builtins.stringLength name - 3) name;
+        value = builtins.readFile (./modules + "/${name}");
+      }) mdFiles
+    );
+  module_docs = builtins.mapAttrs (buildModuleDocs "modules" (builtins.removeAttrs module_desc [ "core" ])) wlib.modules;
   wrapper_docs = builtins.mapAttrs (buildModuleDocs "wrapperModules" { }) wlib.wrapperModules;
 
   coredocs =
@@ -84,7 +93,7 @@ let
           };
         in
         ''
-          cat ${./core.md} > $out
+          echo ${lib.escapeShellArg (module_desc.core or "")} > $out
           echo >> $out
           cat ${coreopts.optionsCommonMark} | \
             sed 's|file://${../.}|https://github.com/BirdeeHub/nix-wrapper-modules/blob/main|g' | \
@@ -133,10 +142,7 @@ let
     mkdir -p $out/src
     cp ${./book.toml} $out/book.toml
     ${mkCopyCmds (coredocs // wrapper_docs // module_docs // libdocs)}
-    cp ${./helper-modules.md} $out/src/helper-modules.md
-    cp ${./wrapper-modules.md} $out/src/wrapper-modules.md
-    cp ${./lib-intro.md} $out/src/lib-intro.md
-    cp ${./getting-started.md} $out/src/getting-started.md
+    cp ${./md}/* $out/src/
     cat ${../README.md} | sed 's|# \[nix-wrapper-modules\](https://birdeehub.github.io/nix-wrapper-modules/)|# [nix-wrapper-modules](https://github.com/BirdeeHub/nix-wrapper-modules)|' >> $out/src/home.md
     echo '# Summary' > $out/src/SUMMARY.md
     echo >> $out/src/SUMMARY.md
@@ -149,7 +155,7 @@ let
     echo '  - [`wlib.dag`](./dag.md)' >> $out/src/SUMMARY.md
     echo '  - [`wlib.types`](./types.md)' >> $out/src/SUMMARY.md
     echo '- [Helper Modules](./helper-modules.md)' >> $out/src/SUMMARY.md
-    ${mkSubLinks (builtins.removeAttrs module_docs [ "default" ])}
+    ${mkSubLinks (builtins.removeAttrs module_docs [ "default" "core" ])}
     echo '- [Wrapper Modules](./wrapper-modules.md)' >> $out/src/SUMMARY.md
     ${mkSubLinks wrapper_docs}
   '';
