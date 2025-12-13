@@ -19,14 +19,14 @@ They will get you started with a module file and the default one also gives you 
   inputs.wrappers.url = "github:BirdeeHub/nix-wrapper-modules";
   outputs = { self, wrappers }: {
     packages.x86_64-linux.default =
-      wrappers.wrapperModules.wezterm.wrap ({ pkgs, ... }: {
+      wrappers.wrapperModules.wezterm.wrap ({ lib, ... }: {
         pkgs = wrappers.inputs.nixpkgs.legacyPackages.x86_64-linux;
         luaInfo = {
           keys = [
             {
               key = "F12";
               mods = "SUPER|CTRL|ALT|SHIFT";
-              action = pkgs.lib.generators.mkLuaInline "wezterm.action.Nop";
+              action = lib.generators.mkLuaInline "wezterm.action.Nop";
             }
           ];
         };
