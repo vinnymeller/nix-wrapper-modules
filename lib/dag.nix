@@ -45,7 +45,6 @@ let
   inherit (wlib.dag)
     isEntry
     entryBetween
-    entryAnywhere
     entryAfter
     entriesBetween
     dagWith
@@ -135,16 +134,14 @@ let
           isEntry def.value && all (k: def.value ? ${k}) extrasWithoutDefaults
         else
           isEntry def.value
-          && all (k: elem k knownKeys && (extraOptions.${k}.type.check or (x: true)) def.value.${k}) (
-            attrNames def.value
-          )
+          && all (k: elem k knownKeys) (attrNames def.value)
           && all (k: def.value ? ${k}) extrasWithoutDefaults;
       maybeConvert =
         def:
         if checkMergeDef def then
           def.value
         else
-          entryAnywhere (if def ? priority then mkOrder def.priority def.value else def.value);
+          { data = if def ? priority then mkOrder def.priority def.value else def.value; };
     in
     mkOptionType {
       name = "dagEntryOf";
@@ -316,8 +313,8 @@ in
   isEntry =
     e:
     e ? data
-    && (if e ? after then isList e.after else true)
-    && (if e ? before then isList e.before else true)
+    && (if e ? after then isList e.after && all isString e.after else true)
+    && (if e ? before then isList e.before && all isString e.before else true)
     && (if e ? name then e.name == null || isString e.name else true);
 
   /**

@@ -172,11 +172,16 @@ in
     "-config" = config."config.rasi".path;
   };
 
-  config.package = lib.mkDefault (
-    pkgs.rofi.override (old: {
-      plugins = (old.plugins or [ ]) ++ config.plugins;
-    })
-  );
+  config.package = lib.mkDefault pkgs.rofi;
+  config.overrides = [
+    {
+      name = "ROFI_PLUGINS";
+      type = "override";
+      data = prev: {
+        plugins = (prev.plugins or [ ]) ++ config.plugins;
+      };
+    }
+  ];
 
   config.meta.maintainers = [ wlib.maintainers.birdee ];
   config.meta.platforms = lib.platforms.linux;

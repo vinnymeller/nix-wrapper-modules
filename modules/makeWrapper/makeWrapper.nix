@@ -110,6 +110,7 @@ let
     (
       dag:
       wlib.dag.sortAndUnwrap {
+        name = "makeWrapper";
         inherit dag;
         mapIfOk =
           v:

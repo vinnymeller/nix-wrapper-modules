@@ -28,6 +28,7 @@ let
 
   preFlagStr = builtins.concatStringsSep " " (
     wlib.dag.sortAndUnwrap {
+      name = "addFlag";
       dag =
         lib.optionals (config.addFlag != [ ]) config.addFlag
         ++ lib.optionals (config.flags != { }) (
@@ -43,6 +44,7 @@ let
   );
   postFlagStr = builtins.concatStringsSep " " (
     wlib.dag.sortAndUnwrap {
+      name = "appendFlag";
       dag = config.appendFlag;
       mapIfOk =
         v:
@@ -114,6 +116,7 @@ let
 
   shellcmds = lib.optionals (shellcmdsdal != [ ] || lib.isFunction config.argv0type) (
     wlib.dag.sortAndUnwrap {
+      name = "makeWrapperNix";
       dag =
         shellcmdsdal
         ++ lib.optional (lib.isFunction config.argv0type) {

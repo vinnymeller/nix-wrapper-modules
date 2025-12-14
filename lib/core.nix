@@ -1,4 +1,5 @@
 {
+  options,
   config,
   lib,
   wlib,
@@ -160,9 +161,14 @@ in
       '';
     };
     package = lib.mkOption {
-      # If config.package has not changed since last using override or overrideAttrs
-      # then use the package from override or overrideAttrs
-      apply = v: if config.__package.old or null == v then config.__package.package else v;
+      apply =
+        package:
+        builtins.foldl' (acc: v: acc.${v.type} v.data) package (
+          wlib.dag.sortAndUnwrap {
+            name = "overrides";
+            dag = config.overrides;
+          }
+        );
       type = lib.types.package;
       description = ''
         The base package to wrap.
@@ -170,9 +176,8 @@ in
         for inheriting all other files from this package
         (like man page, /share, ...)
 
-        If you use `.override` or `.overrideAttrs` on the final wrapped package,
-        it will override this value until you set `config.package`
-        with a `lib.mkOverride` priority higher than the previous value of `config.package`
+        The config.package value given by this option already has all
+        values from `config.overrides` applied to it.
       '';
     };
     passthru = lib.mkOption {
@@ -234,7 +239,7 @@ in
       '';
     };
     wrapperFunction = lib.mkOption {
-      type = with lib.types; nullOr (functionTo raw);
+      type = lib.types.nullOr (lib.types.functionTo lib.types.raw);
       default = null;
       description = ''
         Arguments:
@@ -259,12 +264,9 @@ in
       '';
     };
     symlinkScript = lib.mkOption {
-      type =
-        with lib.types;
-        functionTo (oneOf [
-          str
-          (functionTo (attrsOf raw))
-        ]);
+      type = lib.types.functionTo (
+        lib.types.either lib.types.str (lib.types.functionTo (lib.types.attrsOf lib.types.raw))
+      );
       description = ''
         Outside of importing `wlib.modules.symlinkScript` module,
         which is included in `wlib.modules.default`,
@@ -411,45 +413,89 @@ in
         Used by `.eval` to re-evaluate with additional modules.
       '';
     };
-    __package = lib.mkOption {
-      type = lib.types.mkOptionType {
-        name = "lastWins";
-        description = "All definitions (of the same priority) override the previous one";
-        check =
-          x:
-          let
-            ispkg = lib.types.package.check;
-          in
-          x == null || (ispkg (x.package or null) && ispkg (x.old or null));
-        merge =
-          loc: defs:
-          let
-            newest = (builtins.head defs).value;
-            oldestInChain = builtins.foldl' (
-              acc: v:
-              if !(acc.done or false) && acc.old == v.value.package then v.value else acc // { done = true; }
-            ) { inherit (newest) old; } (builtins.tail defs);
-          in
-          if newest.package or null == null then
-            null
-          else
-            {
-              inherit (newest) package;
-              inherit (oldestInChain) old;
-            };
-        emptyValue = null;
-      };
-      default = null;
-      internal = true;
+    overrides = lib.mkOption {
+      type =
+        let
+          inherit (lib.types)
+            functionTo
+            attrsOf
+            either
+            raw
+            enum
+            str
+            ;
+          base =
+            (
+              wlib.types.dalOf
+              // {
+                extraOptions = {
+                  type = lib.mkOption {
+                    type = either (enum [
+                      "override"
+                      "overrideAttrs"
+                    ]) str;
+                    description = ''
+                      the list of `.override` and `.overrideAttrs` to apply to `config.package`
+                      Accessing `config.package` will return the value with all overrides applied.
+                    '';
+                  };
+                };
+              }
+            )
+              (either (attrsOf raw) (functionTo (attrsOf raw)));
+        in
+        base
+        // {
+          merge =
+            loc: defs:
+            # NOTE: we want low&old -> high&new
+            # but we get low&new -> high&old
+            # so we reverse the sort so that mkBefore, mkAfter, override and overrideAttrs
+            # don't happen in reverse of what we expect
+            base.merge loc (
+              lib.sort (
+                a: b:
+                (a.priority or lib.modules.defaultOrderPriority) <= (b.priority or lib.modules.defaultOrderPriority)
+              ) defs
+            );
+        };
+      default = [ ];
       description = ''
-        holds the output of .override and .overrideAttrs
-        along with what they were before.
+        the list of `.override` and `.overrideAttrs` to apply to `config.package`
 
-        This allows the apply of the package option
-        to figure out if it should be using the result of overrides or not
+        Accessing `config.package` will return the package with all overrides applied.
 
-        In order to handle multiple overrides, we return the newest `.package`,
-        but we return the oldest `.old` in the chain of `curr.old == prev.package`
+        Accepts a list of `{ type, data, name ? null, before ? [], after ? [] }`
+
+        `type` is a string like `override` or `overrideAttrs`
+
+        ```nix
+        config.package = pkgs.mpv;
+        config.overrides = [
+          {
+            after = [ "MPV_SCRIPTS" ];
+            type = "override";
+            data = (prev: {
+              scripts = (prev.scripts or []) ++ [ pkgs.mpvScripts.visualizer ];
+            });
+          }
+          {
+            name = "MPV_SCRIPTS";
+            type = "override";
+            data = (prev: {
+              scripts = (prev.scripts or []) ++ config.scripts;
+            });
+          }
+          {
+            type = "override";
+            data = (prev: {
+              scripts = (prev.scripts or []) ++ [ pkgs.mpvScripts.autocrop ];
+            });
+          }
+        ];
+        ```
+
+        The above will add `config.scripts`, then `pkgs.mpvScripts.visualizer` and finally `pkgs.mpvScripts.autocrop`
       '';
     };
     wrapper = lib.mkOption {
@@ -550,19 +596,23 @@ in
                 overrideArgs:
                 passthru.configuration.wrap {
                   _file = ./core.nix;
-                  __package = lib.mkOverride 0 {
-                    package = package.override overrideArgs;
-                    old = package;
-                  };
+                  overrides = lib.mkOverride options.overrides.highestPrio [
+                    {
+                      type = "override";
+                      data = overrideArgs;
+                    }
+                  ];
                 };
               overrideAttrs =
                 overrideArgs:
                 passthru.configuration.wrap {
                   _file = ./core.nix;
-                  __package = lib.mkOverride 0 {
-                    package = package.overrideAttrs overrideArgs;
-                    old = package;
-                  };
+                  overrides = lib.mkOverride options.overrides.highestPrio [
+                    {
+                      type = "overrideAttrs";
+                      data = overrideArgs;
+                    }
+                  ];
                 };
             };
             buildCommand =

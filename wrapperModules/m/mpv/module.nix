@@ -47,10 +47,15 @@
     "--input-conf" = config."mpv.input".path;
     "--include" = config."mpv.conf".path;
   };
-  config.package = lib.mkDefault (
-    pkgs.mpv.override {
-      scripts = config.scripts;
+  config.overrides = [
+    {
+      name = "MPV_SCRIPTS";
+      type = "override";
+      data = prev: {
+        scripts = (prev.scripts or [ ]) ++ config.scripts;
+      };
     }
-  );
+  ];
+  config.package = lib.mkDefault pkgs.mpv;
   config.meta.maintainers = [ wlib.maintainers.birdee ];
 }

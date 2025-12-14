@@ -94,7 +94,6 @@ And you do not lose your ability to use `.override` or `.overrideAttrs` on the o
 
 The arguments will be passed through to the value of `config.package`,
 and the result will persist within the module system for future evaluations!
-(unless you explicitly override it with a new package)
 
 There are included modules for several programs already, but there are rich and easy to use options defined for creating your own modules as well!
 

@@ -60,7 +60,12 @@ let
     if builtins.isString config.luaInit then
       config.luaInit
     else
-      builtins.filter (v: !v.disabled) (wlib.dag.sortAndUnwrap { dag = config.luaInit; });
+      builtins.filter (v: !v.disabled) (
+        wlib.dag.sortAndUnwrap {
+          name = "xplr_init";
+          dag = config.luaInit;
+        }
+      );
   hasFnl = builtins.any (v: v.type == "fnl") initDal;
   basePluginDir = "${placeholder "out"}/${config.binName}-plugins";
 in
@@ -248,6 +253,7 @@ in
         (
           dal:
           wlib.dag.sortAndUnwrap {
+            name = "xplr_plugins";
             dag = builtins.filter (v: !v.disabled) (wlib.dag.dagToDal config.plugins) ++ dal;
             mapIfOk = v: (mkLinkCommand v.name v.data);
           }
