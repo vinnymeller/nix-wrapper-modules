@@ -95,6 +95,8 @@ And you do not lose your ability to use `.override` or `.overrideAttrs` on the o
 The arguments will be passed through to the value of `config.package`,
 and the result will persist within the module system for future evaluations!
 
+As a result it is safe to replace the vast majority of packages with their wrapped counterpart in an overlay directly.
+
 There are included modules for several programs already, but there are rich and easy to use options defined for creating your own modules as well!
 
 If you make one, you are encouraged to submit it here for others to use if you wish!
