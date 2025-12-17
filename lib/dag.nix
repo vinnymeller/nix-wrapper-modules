@@ -88,7 +88,7 @@ let
               { config, name, ... }@args:
               (if isStrict then { } else { freeformType = wlib.types.attrsRecursive; })
               // {
-                options = extraOptions // {
+                options = (filterAttrs (_: v: !isBool v) extraOptions) // {
                   name = mkOption {
                     type = types.nullOr types.str;
                     default = defaultNameFn args;
@@ -127,7 +127,9 @@ let
         "after"
       ]
       ++ attrNames extraOptions;
-      extrasWithoutDefaults = attrNames (filterAttrs (n: v: !v ? default) extraOptions);
+      extrasWithoutDefaults = attrNames (
+        filterAttrs (n: v: if isBool v then !v else !v ? default) extraOptions
+      );
       checkMergeDef =
         def:
         if !isStrict then
@@ -195,21 +197,37 @@ in
     - `settings`:
         - `strict ? true`
         - `extraOptions ? {}`
+          Accepts either of two forms:
+          1. **Boolean flags**
+             - Each key is treated as an extra field.
+             - `true`  → indicates the field has a default value.
+             - `false` → indicates the field has no default and must be provided.
+             - Used only for validation of if this is a DAG entry or not.
+             - Useful for when you use the modules attribute for `lib.types.submoduleWith` to add more options,
+               but don't want to use `strict == false`
+          2. **Attribute set of mkOption**
+             - Each key is a proper `lib.mkOption` that will be merged into the DAG entry type.
+             - Provides type checking, defaults, and documentation of that field's addition to the entry type.
+          - Both forms can be combined in the same set.
         - `defaultNameFn ? ({ config, name, isDal, ... }: if isDal then null else name)`
-        - ... other arguments for `lib.types.submoduleWith`
+          Function to compute the default `name` for entries. Recieves the submodule arguments.
+        - ...other arguments for `lib.types.submoduleWith`
+          Passed through to configure submodules in the DAG entries.
+
     - `elemType`: `type`
+      The type of the DAG entries’ `data` field. You can provide the type, OR an entry for each item.
+      In the resulting `config.optionname` value, all items are normalized into entries.
 
-    dagWith accepts an attrset as its first parameter BEFORE elemType.
-
-    You may include `{ strict = false; }` to make it recognize sets
-    with arbitrary extra values beyond just `data`, `name`, `before`, and `after`.
-
-    You may include `{ extraOptions = { lib.mkOption ... }; }`
-    to add extra fields to the dagEntryOf type to have extra type checked values,
-    even if strict is true
-
-    The `config.optionname` value from the associated option
-    will be normalized such that all items are DAG entries
+    Notes:
+    - `dagWith` accepts an attrset as its first parameter (the `settings`) **before** `elemType`.
+    - Setting `strict = false` allows entries to have **unchecked** extra attributes beyond `data`, `name`, `before`, and `after`.
+      If your item is a set, and might have a `data` field, you will want to keep `strict = false` to avoid false positives.
+    - `extraOptions` allows adding extra **type-checked** fields to the `dagEntryOf` type:
+      - Boolean flags indicate required/presence-only schema fields. They DO NOT declare the actual submodule option.
+        You will need to do this yourself by passing `modules = [ (<your module here>) ];`
+      - `mkOption` values provided here are merged directly into the submodule type.
+    - The `config.optionname` value from the associated option will be normalized so that all items become valid DAG entries.
+    - If `elemType` is a submodule, a `dagName` argument will automatically be injected to retain the actual attribute name.
   */
   dagWith =
     settings: elemType:
@@ -268,23 +286,39 @@ in
   /**
     Arguments:
     - `settings`:
-      - `strict ? true`
-      - `extraOptions ? {}`
-      - `defaultNameFn ? ({ config, name, isDal, ... }: if isDal then null else name)`
-      - ... other arguments for `lib.types.submoduleWith`
+        - `strict ? true`
+        - `extraOptions ? {}`
+          Accepts either of two forms:
+          1. **Boolean flags**
+             - Each key is treated as an extra field.
+             - `true`  → indicates the field has a default value.
+             - `false` → indicates the field has no default and must be provided.
+             - Used only for validation of if this is a DAG entry or not.
+             - Useful for when you use the modules attribute for `lib.types.submoduleWith` to add more options,
+               but don't want to use `strict == false`
+          2. **Attribute set of mkOption**
+             - Each key is a proper `lib.mkOption` that will be merged into the DAG entry type.
+             - Provides type checking, defaults, and documentation of that field's addition to the entry type.
+          - Both forms can be combined in the same set.
+        - `defaultNameFn ? ({ config, name, isDal, ... }: if isDal then null else name)`
+          Function to compute the default `name` for entries. Recieves the submodule arguments.
+        - ...other arguments for `lib.types.submoduleWith`
+          Passed through to configure submodules in the DAG entries.
+
     - `elemType`: `type`
+      The type of the DAL entries’ `data` field. You can provide the type, OR an entry for each item.
+      In the resulting `config.optionname` value, all items are normalized into entries.
 
-    dalWith accepts an attrset as its first parameter BEFORE elemType.
-
-    You may include `{ strict = false; }` to make it recognize sets
-    with arbitrary extra values beyond just `data`, `name`, `before`, and `after`.
-
-    You may include `{ extraOptions = { lib.mkOption ... }; }`
-    to add extra fields to the dagEntryOf type to have extra type checked values,
-    even if strict is true
-
-    The `config.optionname` value from the associated option
-    will be normalized such that all items are DAG entries
+    Notes:
+    - `dalWith` accepts an attrset as its first parameter (the `settings`) **before** `elemType`.
+    - Setting `strict = false` allows entries to have UNCHECKED extra attributes beyond `data`, `name`, `before`, and `after`.
+      If your item is a set, and might have a `data` field, you will want to keep `strict = false` to avoid false positives.
+    - `extraOptions` allows adding extra **type-checked** fields to the `dagEntryOf` type:
+      - Boolean flags indicate required/presence-only schema fields. They DO NOT declare the actual submodule option.
+        You will need to do this yourself by passing `modules = [ (<your module here>) ];`
+      - `mkOption` values provided here are merged directly into the submodule type.
+    - The `config.optionname` value from the associated option will be normalized so that all items become valid DAG entries.
+    - If `elemType` is a submodule, a `dagName` argument will automatically be injected to retain the actual attribute name.
   */
   dalWith =
     settings: elemType:
@@ -550,7 +584,7 @@ in
       sortedDag = topoSort dag;
       result =
         if sortedDag ? result then
-          if lib.isFunction mapIfOk then map mapIfOk sortedDag.result else sortedDag.result
+          if isFunction mapIfOk then map mapIfOk sortedDag.result else sortedDag.result
         else
           abort ("Dependency cycle in ${name}: " + toJSON sortedDag);
     in
