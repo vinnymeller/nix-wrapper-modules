@@ -117,9 +117,6 @@ let
 in
 {
   config.meta.maintainers = lib.mkOverride 1001 [ wlib.maintainers.birdee ];
-  config.drv = lib.mkIf (config.extraDrvAttrs != null) (
-    lib.warn "extraDrvAttrs has been renamed to `config.drv`" config.extraDrvAttrs
-  );
   config._module.args.pkgs = config.pkgs;
   options = {
     meta = {
@@ -274,12 +271,6 @@ in
         This can be used to add additional metadata or functionality to the wrapped package.
         Anything added under the attribute name `configuration` will be ignored, as that value is used internally.
       '';
-    };
-    extraDrvAttrs = lib.mkOption {
-      default = null;
-      internal = true;
-      type = lib.types.nullOr wlib.types.attrsRecursive;
-      description = "DEPRECATED renamed to `drv`";
     };
     drv = lib.mkOption {
       default = { };
