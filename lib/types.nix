@@ -1,16 +1,20 @@
 { wlib, lib }:
 let
   extradagopts = {
-    extraOptions = {
-      esc-fn = lib.mkOption {
-        type = lib.types.nullOr (lib.types.functionTo lib.types.str);
-        default = null;
-      };
-    };
+    modules = [
+      {
+        options.esc-fn = lib.mkOption {
+          type = lib.types.nullOr (lib.types.functionTo lib.types.str);
+          default = null;
+        };
+      }
+    ];
   };
 in
 {
   /**
+    A DAG LIST or (DAL) or `dependency list` of some inner type
+
     Arguments:
     - `elemType`: `type`
 
@@ -22,11 +26,25 @@ in
 
     If a name is not given, it cannot be targeted by other values.
 
-    Can be used in conjunction with `wlib.dag.topoSort`
+    Can be used in conjunction with `wlib.dag.topoSort` and `wlib.dag.sortAndUnwrap`
+
+    Note, if the element type is a submodule then the `name` argument
+    will always be set to the string "data" since it picks up the
+    internal structure of the DAG values. To give access to the
+    "actual" attribute name a new submodule argument is provided with
+    the name `dagName`.
+
+    The `config.optionname` value from the associated option
+    will be normalized such that all items are DAG entries
+
+    If you wish to alter the type, you may provide different options
+    to `wlib.dag.dalWith` by updating this type `wlib.types.dalOf // { strict = false; }`
   */
   dalOf = wlib.dag.dalOf;
 
   /**
+    A directed acyclic graph of some inner type.
+
     Arguments:
     - `elemType`: `type`
 
@@ -38,8 +56,21 @@ in
 
     `name` defaults to the key in the set.
 
-    Can be used in conjunction with `wlib.dag.topoSort`
+    Can be used in conjunction with `wlib.dag.topoSort` and `wlib.dag.sortAndUnwrap`
+
+    Note, if the element type is a submodule then the `name` argument
+    will always be set to the string "data" since it picks up the
+    internal structure of the DAG values. To give access to the
+    "actual" attribute name a new submodule argument is provided with
+    the name `dagName`.
+
+    The `config.optionname` value from the associated option
+    will be normalized such that all items are DAG entries
+
+    If you wish to alter the type, you may provide different options
+    to `wlib.dag.dagWith` by updating this type `wlib.types.dagOf // { strict = false; }`
   */
+
   dagOf = wlib.dag.dagOf;
 
   /**

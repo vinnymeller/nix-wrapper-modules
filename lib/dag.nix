@@ -55,27 +55,26 @@ let
     gmap
     dagToDal
     ;
-  mkExtraFieldsMsg =
-    settings:
-    if isAttrs (settings.extraOptions or null) then
-      "(with extra field(s): `" + (concatStringsSep "`, `" (attrNames settings.extraOptions)) + "`) "
-    else
-      "";
   dagEntryOf =
     settings: isDal: elemType:
     let
       isStrict = if isBool (settings.strict or true) then settings.strict or true else true;
-      extraOptions = if isAttrs (settings.extraOptions or null) then settings.extraOptions else { };
-      specialArgs = if isAttrs (settings.specialArgs or null) then settings.specialArgs else { };
       dataTypeFn = if isFunction (settings.dataTypeFn or null) then settings.dataTypeFn else x: _: x;
       defaultNameFn =
         if isFunction (settings.defaultNameFn or null) then
           settings.defaultNameFn
         else
           { name, isDal, ... }: if isDal then null else name;
+      extraOptions =
+        if settings ? extraOptions then
+          lib.warn
+            "Deprecated dagWith/dalWith setting: `extraOptions` set. Use `modules` list instead to provide extra options"
+            (if isAttrs (settings.extraOptions or null) then settings.extraOptions else { })
+        else
+          { };
       submoduleType = types.submoduleWith (
         {
-          specialArgs = specialArgs // {
+          specialArgs = (if isAttrs (settings.specialArgs or null) then settings.specialArgs else { }) // {
             inherit isDal;
           };
           shorthandOnlyDefinesConfig =
@@ -104,7 +103,7 @@ let
                     default = [ ];
                   };
                 };
-                config = mkIf (elemType.name == "submodule" && !isFunction (settings.dataTypeFn or null)) {
+                config = mkIf (elemType.name == "submodule") {
                   data._module.args.dagName = config.name;
                 };
               }
@@ -122,23 +121,39 @@ let
           "dataTypeFn"
         ]
       );
-      knownKeys = [
-        "name"
-        "data"
-        "before"
-        "after"
-      ]
-      ++ attrNames extraOptions;
-      extrasWithoutDefaults = attrNames (
-        filterAttrs (n: v: if isBool v then !v else !v ? default) extraOptions
-      );
+      subopts = removeAttrs (submoduleType.getSubOptions [ ]) [ "_module" ];
+      extraFieldsMsg =
+        let
+          extra-fields = attrNames (
+            filterAttrs (
+              n: v:
+              if
+                {
+                  name = false;
+                  data = false;
+                  before = false;
+                  after = false;
+                }
+                .${n} or true
+              then
+                if v.internal or false then false else true
+              else
+                false
+            ) subopts
+          );
+        in
+        if length extra-fields != 0 then
+          "(with extra field(s): `" + (concatStringsSep "`, `" extra-fields) + "`) "
+        else
+          "";
+      extrasWithoutDefaults = attrNames (filterAttrs (n: v: !(v.isDefined or true)) subopts);
       checkMergeDef =
         def:
         if !isStrict then
           isEntry def.value && all (k: def.value ? ${k}) extrasWithoutDefaults
         else
           isEntry def.value
-          && all (k: elem k knownKeys) (attrNames def.value)
+          && all (k: elem k (attrNames subopts)) (attrNames def.value)
           && all (k: def.value ? ${k}) extrasWithoutDefaults;
       maybeConvert =
         def:
@@ -147,18 +162,21 @@ let
         else
           { data = if def ? priority then mkOrder def.priority def.value else def.value; };
     in
-    mkOptionType {
-      name = "dagEntryOf";
-      description = "DAG entry ${mkExtraFieldsMsg settings}of ${elemType.description}";
-      # leave the checking to the submodule type
-      merge =
-        loc: defs:
-        submoduleType.merge loc (
-          map (def: {
-            inherit (def) file;
-            value = maybeConvert def;
-          }) defs
-        );
+    {
+      inherit extraFieldsMsg;
+      type = mkOptionType {
+        name = "dagEntryOf";
+        description = "DAG entry ${extraFieldsMsg}of ${elemType.description}";
+        # leave the checking to the submodule type
+        merge =
+          loc: defs:
+          submoduleType.merge loc (
+            map (def: {
+              inherit (def) file;
+              value = maybeConvert def;
+            }) defs
+          );
+      };
     };
 in
 {
@@ -176,7 +194,7 @@ in
 
     `name` defaults to the key in the set.
 
-    Can be used in conjunction with `wlib.dag.topoSort`
+    Can be used in conjunction with `wlib.dag.topoSort` and `wlib.dag.sortAndUnwrap`
 
     Note, if the element type is a submodule then the `name` argument
     will always be set to the string "data" since it picks up the
@@ -188,7 +206,7 @@ in
     will be normalized such that all items are DAG entries
 
     If you wish to alter the type, you may provide different options
-    to wlib.dag.dagWith by updating this type `wlib.dag.dagOf // { strict = false; }`
+    to `wlib.dag.dagWith` by updating this type `wlib.dag.dagOf // { strict = false; }`
   */
   dagOf = {
     __functor = self: dagWith (removeAttrs self [ "__functor" ]);
@@ -197,20 +215,7 @@ in
   /**
     Arguments:
     - `settings`:
-        - `strict ? true`
-        - `extraOptions ? {}`
-          Accepts either of two forms:
-          1. **Boolean flags**
-             - Each key is treated as an extra field.
-             - `true`  → indicates the field has a default value.
-             - `false` → indicates the field has no default and must be provided.
-             - Used only for validation of if this is a DAG entry or not.
-             - Useful for when you use the modules attribute for `lib.types.submoduleWith` to add more options,
-               but don't want to use `strict == false`
-          2. **Attribute set of mkOption**
-             - Each key is a proper `lib.mkOption` that will be merged into the DAG entry type.
-             - Provides type checking, defaults, and documentation of that field's addition to the entry type.
-          - Both forms can be combined in the same set.
+        - `strict ? true`: `false` adds `freeformType = wlib.types.attrsRecursive`
         - `defaultNameFn ? ({ config, name, isDal, ... }@moduleArgs: if isDal then null else name)`
           Function to compute the default `name` for entries. Recieves the submodule arguments.
         - `dataTypeFn` ? `(elemType: { config, name, isDal, ... }@moduleArgs: elemType)`
@@ -225,22 +230,21 @@ in
     Notes:
     - `dagWith` accepts an attrset as its first parameter (the `settings`) **before** `elemType`.
     - Setting `strict = false` allows entries to have **unchecked** extra attributes beyond `data`, `name`, `before`, and `after`.
-      If your item is a set, and might have a `data` field, you will want to keep `strict = false` to avoid false positives.
-    - `extraOptions` allows adding extra **type-checked** fields to the `dagEntryOf` type:
-      - Boolean flags indicate required/presence-only schema fields. They DO NOT declare the actual submodule option.
-        You will need to do this yourself by passing `modules = [ (<your module here>) ];`
-      - `mkOption` values provided here are merged directly into the submodule type.
+      If your item is a set, and might have a `data` field, you will want to keep `strict = true` to avoid false positives.
+    - To add extra type-checked fields, use the `modules` attribute, which is passed through to `submoduleWith`.
+      The allowed dag fields will be automatically generated from the base set of modules passed.
     - The `config.optionname` value from the associated option will be normalized so that all items become valid DAG entries.
     - If `elemType` is a submodule, and `dataTypeFn` is not provided, a `dagName` argument will automatically be injected to access the actual attribute name.
   */
   dagWith =
     settings: elemType:
     let
-      attrEquivalent = types.attrsOf (dagEntryOf settings false elemType);
+      entry = dagEntryOf settings false elemType;
+      attrEquivalent = types.attrsOf entry.type;
     in
     mkOptionType rec {
       name = "dagOf";
-      description = "DAG ${mkExtraFieldsMsg settings}of ${elemType.description}";
+      description = "DAG ${entry.extraFieldsMsg}of ${elemType.description}";
       inherit (attrEquivalent) check merge emptyValue;
       inherit (elemType) getSubModules;
       getSubOptions = prefix: elemType.getSubOptions (prefix ++ [ "<name>" ]);
@@ -269,7 +273,7 @@ in
 
     If a name is not given, it cannot be targeted by other values.
 
-    Can be used in conjunction with `wlib.dag.topoSort`
+    Can be used in conjunction with `wlib.dag.topoSort` and `wlib.dag.sortAndUnwrap`
 
     Note, if the element type is a submodule then the `name` argument
     will always be set to the string "data" since it picks up the
@@ -281,7 +285,7 @@ in
     will be normalized such that all items are DAG entries
 
     If you wish to alter the type, you may provide different options
-    to wlib.dag.dalWith by updating this type `wlib.dag.dalOf // { strict = false; }`
+    to `wlib.dag.dalWith` by updating this type `wlib.dag.dalOf // { strict = false; }`
   */
   dalOf = {
     __functor = self: dalWith (removeAttrs self [ "__functor" ]);
@@ -290,20 +294,7 @@ in
   /**
     Arguments:
     - `settings`:
-        - `strict ? true`
-        - `extraOptions ? {}`
-          Accepts either of two forms:
-          1. **Boolean flags**
-             - Each key is treated as an extra field.
-             - `true`  → indicates the field has a default value.
-             - `false` → indicates the field has no default and must be provided.
-             - Used only for validation of if this is a DAG entry or not.
-             - Useful for when you use the modules attribute for `lib.types.submoduleWith` to add more options,
-               but don't want to use `strict == false`
-          2. **Attribute set of mkOption**
-             - Each key is a proper `lib.mkOption` that will be merged into the DAG entry type.
-             - Provides type checking, defaults, and documentation of that field's addition to the entry type.
-          - Both forms can be combined in the same set.
+        - `strict ? true`: `false` adds `freeformType = wlib.types.attrsRecursive`
         - `defaultNameFn ? ({ config, name, isDal, ... }@moduleArgs: if isDal then null else name)`
           Function to compute the default `name` for entries. Recieves the submodule arguments.
         - `dataTypeFn` ? `(elemType: { config, name, isDal, ... }@moduleArgs: elemType)`
@@ -318,22 +309,21 @@ in
     Notes:
     - `dalWith` accepts an attrset as its first parameter (the `settings`) **before** `elemType`.
     - Setting `strict = false` allows entries to have UNCHECKED extra attributes beyond `data`, `name`, `before`, and `after`.
-      If your item is a set, and might have a `data` field, you will want to keep `strict = false` to avoid false positives.
-    - `extraOptions` allows adding extra **type-checked** fields to the `dagEntryOf` type:
-      - Boolean flags indicate required/presence-only schema fields. They DO NOT declare the actual submodule option.
-        You will need to do this yourself by passing `modules = [ (<your module here>) ];`
-      - `mkOption` values provided here are merged directly into the submodule type.
+      If your item is a set, and might have a `data` field, you will want to keep `strict = true` to avoid false positives.
+    - To add extra type-checked fields, use the `modules` attribute, which is passed through to `submoduleWith`.
+      The allowed dag fields will be automatically generated from the base set of modules passed.
     - The `config.optionname` value from the associated option will be normalized so that all items become valid DAG entries.
     - If `elemType` is a submodule, and `dataTypeFn` is not provided, a `dagName` argument will automatically be injected to access the actual attribute name.
   */
   dalWith =
     settings: elemType:
     let
-      listEquivalent = types.listOf (dagEntryOf settings true elemType);
+      entry = dagEntryOf settings true elemType;
+      listEquivalent = types.listOf entry.type;
     in
     mkOptionType rec {
       name = "dalOf";
-      description = "DAG LIST ${mkExtraFieldsMsg settings}of ${elemType.description}";
+      description = "DAG LIST ${entry.extraFieldsMsg}of ${elemType.description}";
       inherit (listEquivalent) check merge emptyValue;
       inherit (elemType) getSubModules getSubOptions;
       substSubModules = m: dalWith settings (elemType.substSubModules m);

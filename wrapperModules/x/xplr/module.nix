@@ -12,6 +12,11 @@ let
       (
         { config, ... }:
         {
+          options.enable = lib.mkOption {
+            type = lib.types.bool;
+            default = true;
+            description = "Enable the value";
+          };
           options.disabled = lib.mkOption {
             internal = true;
             type = lib.types.nullOr lib.types.bool;
@@ -27,38 +32,34 @@ let
         }
       )
     ];
-    extraOptions = {
-      enable = lib.mkOption {
-        type = lib.types.bool;
-        default = true;
-        description = "Enable the value";
-      };
-      disabled = true;
-    };
   };
   configDagOf = enabledDagOf // {
-    extraOptions = enabledDagOf.extraOptions // {
-      plugin = lib.mkOption {
-        type = lib.types.nullOr wlib.types.stringable;
-        default = null;
-        description = "You can add plugins to the config entries directly instead of `config.plugins`";
-      };
-      opts = lib.mkOption {
-        type = luaType;
-        default = { };
-        description = ''
-          Can be received in `.data` with `local opts, name = ...`
-        '';
-      };
-      type = lib.mkOption {
-        type = lib.types.enum [
-          "fnl"
-          "lua"
-        ];
-        default = config.defaultConfigLang;
-        description = "The language to be used within this config segment";
-      };
-    };
+    modules = enabledDagOf.modules ++ [
+      {
+        options = {
+          plugin = lib.mkOption {
+            type = lib.types.nullOr wlib.types.stringable;
+            default = null;
+            description = "You can add plugins to the config entries directly instead of `config.plugins`";
+          };
+          opts = lib.mkOption {
+            type = luaType;
+            default = { };
+            description = ''
+              Can be received in `.data` with `local opts, name = ...`
+            '';
+          };
+          type = lib.mkOption {
+            type = lib.types.enum [
+              "fnl"
+              "lua"
+            ];
+            default = config.defaultConfigLang;
+            description = "The language to be used within this config segment";
+          };
+        };
+      }
+    ];
   };
   initDal =
     if builtins.isString config.luaInit then

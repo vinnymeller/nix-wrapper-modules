@@ -195,17 +195,19 @@ in
             (
               wlib.types.dalOf
               // {
-                extraOptions = {
-                  type = lib.mkOption {
-                    type = either (enum [
-                      "override"
-                      "overrideAttrs"
-                    ]) str;
-                    description = ''
-                      The attribute of `config.package` to pass the override argument to.
-                    '';
-                  };
-                };
+                modules = [
+                  {
+                    options.type = lib.mkOption {
+                      type = either (enum [
+                        "override"
+                        "overrideAttrs"
+                      ]) str;
+                      description = ''
+                        The attribute of `config.package` to pass the override argument to.
+                      '';
+                    };
+                  }
+                ];
               }
             )
               (either (attrsOf raw) (functionTo (attrsOf raw)));

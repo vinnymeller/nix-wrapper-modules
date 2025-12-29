@@ -18,12 +18,14 @@
     (
       wlib.types.dagOf
       // {
-        extraOptions = wlib.types.dagWithEsc.extraOptions // {
-          sep = lib.mkOption {
-            type = nullOr str;
-            default = null;
-          };
-        };
+        modules = wlib.types.dagWithEsc.modules ++ [
+          {
+            options.sep = lib.mkOption {
+              type = nullOr str;
+              default = null;
+            };
+          }
+        ];
       }
     )
       (
