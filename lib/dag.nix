@@ -236,7 +236,7 @@ in
     Arguments:
     - `settings`:
         - `strict ? true`:
-          `false` adds `freeformType = wlib.types.attrsRecursive`
+          `false` adds `freeformType = wlib.types.attrsRecursive` and adjusts the conversion logic to accomodate. See Notes section below.
         - `defaultNameFn ? ({ config, name, isDal, ... }@moduleArgs: if isDal then null else name)`:
           Function to compute the default `name` for entries. Recieves the submodule arguments.
         - `dataTypeFn` ? `(elemType: { config, name, isDal, ... }@moduleArgs: elemType)`:
@@ -319,7 +319,7 @@ in
     Arguments:
     - `settings`:
         - `strict ? true`:
-          `false` adds `freeformType = wlib.types.attrsRecursive`
+          `false` adds `freeformType = wlib.types.attrsRecursive` and adjusts the conversion logic to accomodate. See Notes section below.
         - `defaultNameFn ? ({ config, name, isDal, ... }@moduleArgs: if isDal then null else name)`:
           Function to compute the default `name` for entries. Recieves the submodule arguments.
         - `dataTypeFn` ? `(elemType: { config, name, isDal, ... }@moduleArgs: elemType)`:
