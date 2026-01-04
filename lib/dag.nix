@@ -159,9 +159,9 @@ let
         if dontConvertFunctions && isFunction def.value then
           true
         else if !isStrict then
-          isEntry def.value && all (k: def.value ? ${k}) extrasWithoutDefaults
+          isAttrs def.value && all (k: def.value ? ${k}) extrasWithoutDefaults
         else
-          isEntry def.value
+          isAttrs def.value
           && all (k: elem k (attrNames subopts)) (attrNames def.value)
           && all (k: def.value ? ${k}) extrasWithoutDefaults;
       # converts if not already the submodule type
