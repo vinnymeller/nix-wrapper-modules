@@ -183,7 +183,7 @@ in
     };
     escapeTime = lib.mkOption {
       type = lib.types.int;
-      default = 500;
+      default = 10;
       description = "Value for `set -s escape-time`.";
     };
     historyLimit = lib.mkOption {
