@@ -324,6 +324,7 @@
           };
         }
       );
+      desc = base.description;
     in
     lib.mkOptionType {
       inherit name;
@@ -337,18 +338,12 @@
       description =
         if description != null then
           description
+        else if lib.hasPrefix "open submodule" desc then
+          "open subWrapperModule" + builtins.substring 14 (builtins.stringLength desc - 14) desc
+        else if lib.hasPrefix "submodule" desc then
+          "subWrapperModule" + builtins.substring 9 (builtins.stringLength desc - 9) desc
         else
-          let
-            docsEval = base.extendModules { modules = [ lib.types.noCheckForDocsModule ]; };
-          in
-          if docsEval._module.freeformType ? description then
-            "open ${name} of ${
-              lib.types.optionDescriptionPhrase (
-                class: class == "noun" || class == "composite"
-              ) docsEval._module.freeformType
-            }"
-          else
-            name;
+          desc;
       getSubModules = modules;
       substSubModules =
         m:
@@ -360,7 +355,7 @@
         );
       functor = lib.defaultFunctor name // {
         type = wlib.types.subWrapperModuleWith;
-        payload = base.payload // {
+        payload = base.functor.payload // {
           inherit modules specialArgs;
         };
         inherit (base.functor) binOp;
