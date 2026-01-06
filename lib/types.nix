@@ -257,11 +257,17 @@ in
     };
 
   /**
-    Exactly like `lib.types.submoduleWith` but for wrapper modules!
+    Like `lib.types.submoduleWith` but for wrapper modules!
 
     Use this when you want your wrapper module to be able to accept other programs along with custom configurations.
 
-    It takes all the same arguments as `lib.types.submoduleWith`.
+    The resulting `config.optionname` value will contain `.config` from the evaluated wrapper module, just like `lib.types.submoduleWith`
+
+    In other words, it will contain the same thing calling `.apply` returns.
+
+    This means you may grab the wrapped package from `config.optionname.wrapper`
+
+    It takes all the same arguments as `lib.types.submoduleWith`, plus 1 extra argument, `mkModuleAfter`
 
     ```nix
     wlib.types.subWrapperModuleWith {
@@ -269,18 +275,19 @@ in
       specialArgs ? {},
       shorthandOnlyDefinesConfig ? false,
       description ? null,
-      class ? null
+      class ? null,
+      mkModuleAfter ? null
     }
     ```
 
-    The resulting `config.optionname` value will contain `.config` from the evaluated wrapper module, just like `lib.types.submoduleWith`
+    `mkModuleAfter` may receive a function that gets the full result of evaluating the submodule as an argument.
 
-    In other words, it will contain the same thing calling `.apply` returns.
-
-    This means you may grab the wrapped package from `config.optionname.wrapper`
+    If provided, it is to return an extra module to pass to `config.eval` to modify the resulting wrapper module but with access to things like,
+    the highest priority override previously declared on the option you want to modify without infinite recursion.
   */
   subWrapperModuleWith =
     {
+      mkModuleAfter ? null,
       modules ? [ ],
       specialArgs ? { },
       ...
@@ -299,6 +306,7 @@ in
         // builtins.removeAttrs submoduleArgs [
           "modules"
           "specialArgs"
+          "mkModuleAfter"
         ]
       );
     in
@@ -325,7 +333,7 @@ in
                   ];
                 };
               in
-              res;
+              if lib.isFunction mkModuleAfter then res.config.eval (mkModuleAfter res) else res;
           in
           initial
           // {
