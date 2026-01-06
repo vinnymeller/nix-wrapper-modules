@@ -18,7 +18,7 @@ in
     maintainers
     ;
 
-  types = import ./types.nix { inherit lib wlib; };
+  types = import ./types.nix { inherit lib wlib modulesPath; };
 
   dag = import ./dag.nix { inherit lib wlib; };
 

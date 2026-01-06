@@ -1,4 +1,8 @@
-{ wlib, lib }:
+{
+  wlib,
+  lib,
+  modulesPath,
+}:
 {
   /**
     A DAG LIST or (DAL) or `dependency list` of some inner type
@@ -299,7 +303,11 @@
         args
         // {
           modules = [ ./core.nix ] ++ modules;
-          specialArgs = specialArgs // {
+          specialArgs = {
+            inherit modulesPath;
+          }
+          // specialArgs
+          // {
             inherit wlib;
           };
         }
