@@ -483,7 +483,7 @@ in
         description = "function that evaluates to a(n) raw value _(read only)_";
         # It's basically true.
         # Unless they evaluated this module with the regular nixpkgs.lib.evalModules,
-        # it will be overridden to the correct thing regardless of what the user does.
+        # or set it with `lib.mkOverride 0 (lib.mkOrder 0 <something_bad>)`.
         emptyValue = _: { };
       };
       apply =

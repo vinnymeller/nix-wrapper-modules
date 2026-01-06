@@ -143,29 +143,33 @@ This repository was designed around giving you absolute control over the _deriva
 
 In short, this repo is more what it claims to be. A generalized and effective module system for creating wrapper derivations, and offers far more abilities to that effect to the module system itself.
 
-In fact, the only attribute of the final derivation you cannot directly override is `buildCommand`.
-
-And even for `buildCommand` you can still change its contents entirely if desired, although I think you will find `wlib.modules.default` provides very sensible defaults and that you will not need to do this yourself often.
-
 This allows you to easily modify your module with extra files and scripts or whatever else you may need!
 
-Maybe you want your `tmux` wrapper to also output a launcher script that rejoins a session, or creates one? You can do that using this project with, for example, a `postBuild` hook just like in a derivation, and you can even use `"${placeholder "out"}"` in it!
+Maybe you want your `tmux` wrapper to also output a launcher script that rejoins a session, or creates one? You can do that using this project with, for example, a `drv.postBuild` hook! Just like in a derivation, and you can even use `"${placeholder "out"}"` in it!
 
 But you can supply it [from within the module system](https://birdeehub.github.io/nix-wrapper-modules/core.html#drv)! You could then define an option to customize its behavior later!
 
 In addition, the way it is implemented allows for the creation of helper modules that wrap derivations in all sorts of ways, which you could import instead of `wlib.modules.default` if you wanted. We could have similar modules for wrapping projects via bubblewrap or into docker containers with the same ease with which this library orchestrates regular wrapper scripts.
 
-It makes many more improvements as well, things like, ordering of flags on a fine-grained basis, customizing of escaping function per item, and more...
+It makes a lot of improvements, both to the basic wrapping options, and to the module system as a whole.
 
-In short, while both projects have surface level similarities, you would be leaving a lot on the table to not use this one instead!
+Things like:
 
-I did originally try to contribute my changes, but for numerous reasons, this did not work out.
+- A `wlib.types.subWrapperModuleWith` type which works like `lib.types.submoduleWith` (and can be used in other module systems which use the nixpkgs module system)
+- Fine-grained control over the actual wrapper derivation you are making with options like `config.drv` and `config.passthru` (and others...)
+- You can call `.extendModules` from the evaluated result without problems.
+- A customizable type which normalizes "specs" for you, and an associated sorting function (`wlib.types` `.dagOf` and `.dalOf` for attribute set and list forms)
+- And for the wrapper options implementation:
+  - The full suite of options you are used to from `pkgs.makeWrapper`, but in module form, and with full control of the order even across options.
+  - Choose between multiple backend implementations with a single line of code without changing any other options:
+    - `nix` which is the default, like `shell` but allows runtime variable expansion rather than build time
+    - `shell` which uses `pkgs.makeWrapper`
+    - `binary` which uses `pkgs.makeBinaryWrapper`
+  - `${placeholder "out"}` works correctly in this module, pointing to the final wrapper derivation
+  - Ordering of flags on a fine-grained basis (via the DAG and DAL types mentioned above)
+  - Customizing of flag separator per item (via those same types)
+  - Customizing of escaping function per item (same thing here...)
+  - and more...
+- and more...
 
-The original changes suggested were not as sweeping as the changes made when rewriting it for this repository, and did not break any existing functionality.
-
-That being said, contributing to a project by entirely rewriting it and then trying to get that accepted is not a good way to get changes to happen.
-
-But nothing short of that would have made sense.
-The architecture was the problem, and the core of the project, which I was altering, was very short.
-Given that I was deleting one of the core features (the separate builder function), and rolling it directly into the module system,
-breaking it up further was not very possible without leaving it in a broken state.
+While both projects have surface level similarities, this repository is in fact a full rewrite, with a quite significant increase in functionality!
