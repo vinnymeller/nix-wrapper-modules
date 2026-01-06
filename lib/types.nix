@@ -1,16 +1,4 @@
 { wlib, lib }:
-let
-  extradagopts = {
-    modules = [
-      {
-        options.esc-fn = lib.mkOption {
-          type = lib.types.nullOr (lib.types.functionTo lib.types.str);
-          default = null;
-        };
-      }
-    ];
-  };
-in
 {
   /**
     A DAG LIST or (DAL) or `dependency list` of some inner type
@@ -80,7 +68,16 @@ in
 
     used by `wlib.modules.makeWrapper`
   */
-  dalWithEsc = wlib.types.dalOf // extradagopts;
+  dalWithEsc = wlib.types.dalOf // {
+    modules = [
+      {
+        options.esc-fn = lib.mkOption {
+          type = lib.types.nullOr (lib.types.functionTo lib.types.str);
+          default = null;
+        };
+      }
+    ];
+  };
 
   /**
     same as `dagOf` except with an extra field `esc-fn`
@@ -89,7 +86,9 @@ in
 
     used by `wlib.modules.makeWrapper`
   */
-  dagWithEsc = wlib.types.dagOf // extradagopts;
+  dagWithEsc = wlib.types.dagOf // {
+    inherit (wlib.types.dalWithEsc) modules;
+  };
 
   /**
     Type for a value that can be converted to string `"${like_this}"`
@@ -287,31 +286,75 @@ in
   */
   subWrapperModuleWith =
     {
-      mkModuleAfter ? null,
       modules ? [ ],
       specialArgs ? { },
-      ...
-    }@submoduleArgs:
+      shorthandOnlyDefinesConfig ? false,
+      description ? null,
+      class ? null,
+      mkModuleAfter ? null,
+    }@attrs:
     let
-      base = lib.types.submoduleWith (
-        {
-          modules = [
-            ./core.nix
-          ]
-          ++ modules;
-          specialArgs = specialArgs // {
-            inherit wlib;
-          };
-        }
-        // builtins.removeAttrs submoduleArgs [
-          "modules"
-          "specialArgs"
-          "mkModuleAfter"
-        ]
-      );
+      # This subWrapperModuleWith function is a modified version of submoduleWith from nixpkgs:
+      # https://github.com/NixOS/nixpkgs/blob/91fe5b9c7e2fe8af311aa7cd0adb7d93b2d65bce/lib/types.nix#L1214
+      # it uses the wlib.evalModules function, instead of the nixpkgs one.
+      checkDefsForError =
+        check: loc: defs:
+        let
+          invalidDefs = builtins.filter (def: !check def.value) defs;
+        in
+        if invalidDefs != [ ] then
+          { message = "Definition values: ${lib.options.showDefs invalidDefs}"; }
+        else
+          null;
+
+      allModules =
+        defs:
+        map (
+          { value, file }:
+          if builtins.isAttrs value && shorthandOnlyDefinesConfig then
+            {
+              _file = file;
+              config = value;
+            }
+          else
+            {
+              _file = file;
+              imports = [ value ];
+            }
+        ) defs;
+
+      base = wlib.evalModules {
+        inherit class specialArgs;
+        modules = [ { _module.args.name = lib.mkOptionDefault "‹name›"; } ] ++ modules;
+      };
+
+      freeformType = base._module.freeformType;
+
+      name = "subWrapperModule";
+
+      check = {
+        __functor = _self: x: builtins.isAttrs x || lib.isFunction x || lib.types.path.check x;
+        isV2MergeCoherent = true;
+      };
     in
-    base
-    // {
+    lib.mkOptionType {
+      inherit name;
+      description =
+        if description != null then
+          description
+        else
+          let
+            docsEval = base.extendModules { modules = [ lib.types.noCheckForDocsModule ]; };
+          in
+          if docsEval._module.freeformType ? description then
+            "open ${name} of ${
+              lib.types.optionDescriptionPhrase (
+                class: class == "noun" || class == "composite"
+              ) docsEval._module.freeformType
+            }"
+          else
+            name;
+      inherit check;
       merge = {
         __functor =
           self: loc: defs:
@@ -319,27 +362,113 @@ in
         v2 =
           { loc, defs }:
           let
-            initial = base.merge.v2 {
-              inherit loc defs;
+            res = base.extendModules {
+              modules = [ { _module.args.name = lib.last loc; } ] ++ allModules defs;
+              prefix = loc;
             };
-            configuration =
-              let
-                res = initial.valueMeta.configuration.extendModules {
-                  modules = [
-                    {
-                      _file = ./core.nix;
-                      __extend = lib.mkOverride 0 (lib.mkOrder 0 res.extendModules);
-                    }
-                  ];
-                };
-              in
-              if lib.isFunction mkModuleAfter then res.config.eval (mkModuleAfter res) else res;
+            configuration = if lib.isFunction mkModuleAfter then res.config.eval (mkModuleAfter res) else res;
           in
-          initial
-          // {
-            valueMeta = { inherit configuration; };
+          {
+            headError = checkDefsForError check loc defs;
             value = configuration.config;
+            valueMeta = { inherit configuration; };
           };
+      };
+      emptyValue = {
+        value = { };
+      };
+      getSubOptions =
+        prefix:
+        let
+          docsEval = base.extendModules {
+            inherit prefix;
+            modules = [ lib.types.noCheckForDocsModule ];
+          };
+          # Intentionally shadow the freeformType from the possibly *checked*
+          # configuration. See `noCheckForDocsModule` comment.
+          inherit (docsEval._module) freeformType;
+        in
+        docsEval.options
+        // lib.optionalAttrs (freeformType != null) {
+          # Expose the sub options of the freeform type. Note that the option
+          # discovery doesn't care about the attribute name used here, so this
+          # is just to avoid conflicts with potential options from the submodule
+          _freeformOptions = freeformType.getSubOptions prefix;
+        };
+      getSubModules = modules;
+      substSubModules =
+        m:
+        wlib.types.subWrapperModuleWith (
+          attrs
+          // {
+            modules = m;
+          }
+        );
+      nestedTypes = lib.optionalAttrs (freeformType != null) {
+        freeformType = freeformType;
+      };
+      functor = lib.defaultFunctor name // {
+        type = wlib.types.subWrapperModuleWith;
+        payload = {
+          inherit
+            modules
+            class
+            specialArgs
+            shorthandOnlyDefinesConfig
+            description
+            mkModuleAfter
+            ;
+        };
+        binOp = lhs: rhs: {
+          class =
+            # `or null` was added for backwards compatibility only. `class` is
+            # always set in the current version of the module system.
+            if lhs.class or null == null then
+              rhs.class or null
+            else if rhs.class or null == null then
+              lhs.class or null
+            else if lhs.class or null == rhs.class then
+              lhs.class or null
+            else
+              throw "A subWrapperModuleWith option is declared multiple times with conflicting class values \"${toString lhs.class}\" and \"${toString rhs.class}\".";
+          modules = lhs.modules ++ rhs.modules;
+          specialArgs =
+            let
+              intersecting = builtins.intersectAttrs lhs.specialArgs rhs.specialArgs;
+            in
+            if intersecting == { } then
+              lhs.specialArgs // rhs.specialArgs
+            else
+              throw "A subWrapperModuleWith option is declared multiple times with the same specialArgs \"${toString (builtins.attrNames intersecting)}\"";
+          shorthandOnlyDefinesConfig =
+            if lhs.shorthandOnlyDefinesConfig == null then
+              rhs.shorthandOnlyDefinesConfig
+            else if rhs.shorthandOnlyDefinesConfig == null then
+              lhs.shorthandOnlyDefinesConfig
+            else if lhs.shorthandOnlyDefinesConfig == rhs.shorthandOnlyDefinesConfig then
+              lhs.shorthandOnlyDefinesConfig
+            else
+              throw "A subWrapperModuleWith option is declared multiple times with conflicting shorthandOnlyDefinesConfig values";
+          description =
+            if lhs.description == null then
+              rhs.description
+            else if rhs.description == null then
+              lhs.description
+            else if lhs.description == rhs.description then
+              lhs.description
+            else
+              throw "A subWrapperModuleWith option is declared multiple times with conflicting descriptions";
+          mkModuleAfter =
+            prev:
+            let
+              a = lhs.mkModuleAfter or null;
+              b = rhs.mkModuleAfter or null;
+            in
+            if a == null && b == null then
+              null
+            else
+              lib.optionals (a != null) (lib.toList (a prev)) ++ lib.optionals (b != null) (lib.toList (b prev));
+        };
       };
     };
 }

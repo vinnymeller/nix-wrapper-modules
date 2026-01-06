@@ -36,7 +36,7 @@
           ++ [
             {
               _file = ./core.nix;
-              __extend = lib.mkOverride 0 (lib.mkOrder 0 res.extendModules);
+              extendModules = lib.mkOverride 0 (lib.mkOrder 0 res.extendModules);
             }
           ];
           specialArgs = {
@@ -53,7 +53,7 @@
         ])
       );
     in
-    res;
+    res // { inherit (res.config) extendModules; };
 
   /**
     `evalModule = module: wlib.evalModules { modules = if builtins.isList module then module else [ module ]; };`

@@ -105,7 +105,7 @@ let
                     default = [ ];
                   };
                 };
-                config = mkIf (elemType.name == "submodule") {
+                config = mkIf (elemType.name == "submodule" || elemType.name == "subWrapperModule") {
                   data._module.args.dagName = config.name;
                 };
               }

@@ -464,36 +464,45 @@ in
       default =
         module:
         let
-          res = config.__extend {
-            modules = (if builtins.isList module then module else [ module ]) ++ [
-              {
-                _file = ./core.nix;
-                __extend = lib.mkOverride 0 (lib.mkOrder 0 res.extendModules);
-              }
-            ];
+          res = config.extendModules {
+            modules = if builtins.isList module then module else [ module ];
           };
         in
         res;
     };
-    __extend = lib.mkOption {
+    extendModules = lib.mkOption {
       type = lib.types.mkOptionType {
+        # Internally, this option stores the `.extendModules` function at each re-evaluation.
+        # We only assign to this with `lib.mkOverride 0 (lib.mkOrder 0 res.extendModules)`
+        # merge is ordered latest first within the same priority (of both types of priority)
+        # This assures we can always override its value with the newest internal usage of this option.
         name = "lastWins";
-        description = "All definitions (of the same priority) override the previous one";
-        check = lib.isFunction;
         merge = loc: defs: (builtins.head defs).value;
+        check = lib.isFunction;
+        # Slightly lie to the user so the docs look good
+        description = "function that evaluates to a(n) raw value _(read only)_";
+        # It's basically true.
+        # Unless they evaluated this module with the regular nixpkgs.lib.evalModules,
+        # it will be overridden to the correct thing regardless of what the user does.
         emptyValue = _: { };
       };
-      internal = true;
-      description = ''
-        Internal option storing the `.extendModules` function at each re-evaluation.
-        Used by `.eval` to re-evaluate with additional modules.
-
-        We always assign to this with `lib.mkOverride 0 (lib.mkOrder 0 res.extendModules)`
-
-        merge is ordered latest first within the same priority (of both types of priority)
-
-        This assures we can always override its value with the newest internal usage of this option.
-      '';
+      apply =
+        f: args:
+        let
+          res = f (
+            args
+            // {
+              modules = args.modules ++ [
+                {
+                  _file = ./core.nix;
+                  extendModules = lib.mkOverride 0 (lib.mkOrder 0 res.extendModules);
+                }
+              ];
+            }
+          );
+        in
+        res // { inherit (res.config) extendModules; };
+      description = "Alias for `.extendModules` called by `config.eval`, `config.apply`, and `config.wrap`";
     };
     wrapper = lib.mkOption {
       type = lib.types.package;
