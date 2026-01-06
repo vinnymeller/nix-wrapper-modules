@@ -270,7 +270,7 @@
 
     This means you may grab the wrapped package from `config.optionname.wrapper`
 
-    It takes all the same arguments as `lib.types.submoduleWith`, plus 1 extra argument, `mkModuleAfter`
+    It takes all the same arguments as `lib.types.submoduleWith`
 
     ```nix
     wlib.types.subWrapperModuleWith {
@@ -278,15 +278,9 @@
       specialArgs ? {},
       shorthandOnlyDefinesConfig ? false,
       description ? null,
-      class ? null,
-      mkModuleAfter ? null
+      class ? null
     }
     ```
-
-    `mkModuleAfter` may receive a function that gets the full result of evaluating the submodule as an argument.
-
-    If provided, it is to return an extra module to pass to `config.eval` to modify the resulting wrapper module but with access to things like,
-    the highest priority override previously declared on the option you want to modify without infinite recursion.
   */
   subWrapperModuleWith =
     {
@@ -295,8 +289,26 @@
       shorthandOnlyDefinesConfig ? false,
       description ? null,
       class ? null,
-      mkModuleAfter ? null,
+      ...
     }@args:
+    assert
+      !lib.isFunction (args.mkModuleAfter or null)
+      || throw ''
+        mkModuleAfter has been removed from wlib.types.subWrapperModuleWith
+
+        You may instead call `config.optionname.extendModules`,
+        and use `config.optionname.extendModules.options` within it
+        in order to achieve a similar result.
+
+        If you wish it to happen automatically for an option,
+        you may call it in the `apply` field for `lib.mkOption`
+
+        It was removed rather than deprecated because:
+
+        It existed for 2 days and was very likely never used.
+
+        It added a lot of complexity to this type.
+      '';
     let
       name = "subWrapperModule";
       base = lib.types.submoduleWith (
@@ -312,20 +324,12 @@
           };
         }
       );
-      checkDefsForError =
-        defs:
-        let
-          invalidDefs = builtins.filter (def: !base.check def.value) defs;
-        in
-        if invalidDefs != [ ] then
-          { message = "Definition values: ${lib.options.showDefs invalidDefs}"; }
-        else
-          null;
     in
     lib.mkOptionType {
       inherit name;
       inherit (base)
         check
+        merge
         emptyValue
         nestedTypes
         getSubOptions
@@ -345,34 +349,6 @@
             }"
           else
             name;
-      merge = {
-        __functor =
-          self: loc: defs:
-          (self.v2 { inherit loc defs; }).value;
-        v2 =
-          { loc, defs }:
-          let
-            initial = base.merge.v2 { inherit loc defs; };
-          in
-          if lib.isFunction mkModuleAfter then
-            let
-              modules = lib.toList (mkModuleAfter initial);
-              configuration = initial.valueMeta.extendModules { inherit modules; };
-            in
-            {
-              headError = checkDefsForError (
-                defs
-                ++ (map (v: {
-                  file = "<mkModuleAfter for ${lib.options.showOption loc}>";
-                  value = v;
-                }) modules)
-              );
-              valueMeta = { inherit configuration; };
-              value = configuration.config;
-            }
-          else
-            initial;
-      };
       getSubModules = modules;
       substSubModules =
         m:
@@ -384,31 +360,10 @@
         );
       functor = lib.defaultFunctor name // {
         type = wlib.types.subWrapperModuleWith;
-        payload = {
-          inherit
-            modules
-            class
-            specialArgs
-            shorthandOnlyDefinesConfig
-            description
-            mkModuleAfter
-            ;
+        payload = base.payload // {
+          inherit modules specialArgs;
         };
-        binOp =
-          lhs: rhs:
-          base.functor.binOp lhs rhs
-          // {
-            mkModuleAfter =
-              prev:
-              let
-                a = lhs.mkModuleAfter or null;
-                b = rhs.mkModuleAfter or null;
-              in
-              if a == null && b == null then
-                null
-              else
-                lib.optionals (a != null) (lib.toList (a prev)) ++ lib.optionals (b != null) (lib.toList (b prev));
-          };
+        inherit (base.functor) binOp;
       };
     };
 }

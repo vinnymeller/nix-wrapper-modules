@@ -465,10 +465,20 @@ in
       default = module: extendModules { modules = lib.toList module; };
     };
     extendModules = lib.mkOption {
-      type = lib.types.functionTo lib.types.raw;
+      type = lib.types.raw // {
+        inherit (lib.types.functionTo lib.types.raw) description;
+      };
       readOnly = true;
-      default = extendModules;
-      description = "Alias for `.extendModules` so that you can call it from outside of `wlib.types.subWrapperModule` types";
+      default = args // {
+        __functionArgs = lib.functionArgs extendModules;
+        __functor = _: extendModules;
+      };
+      description = ''
+        Alias for `.extendModules` so that you can call it from outside of `wlib.types.subWrapperModule` types
+
+        In addition, it is also a set which stores the function args for the module evaluation.
+        This may prove useful when dealing with subWrapperModules or packages, which otherwise would not have access to some of them.
+      '';
     };
     wrapper = lib.mkOption {
       type = lib.types.package;
