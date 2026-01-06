@@ -356,8 +356,8 @@
           in
           if lib.isFunction mkModuleAfter then
             let
-              nextDefs = lib.toList (mkModuleAfter initial);
-              configuration = initial.value.eval nextDefs;
+              modules = lib.toList (mkModuleAfter initial);
+              configuration = initial.valueMeta.extendModules { inherit modules; };
             in
             {
               headError = checkDefsForError (
@@ -365,7 +365,7 @@
                 ++ (map (v: {
                   file = "<mkModuleAfter for ${lib.options.showOption loc}>";
                   value = v;
-                }) nextDefs)
+                }) modules)
               );
               valueMeta = { inherit configuration; };
               value = configuration.config;
