@@ -343,7 +343,7 @@
         else if lib.hasPrefix "submodule" desc then
           "subWrapperModule" + builtins.substring 9 (builtins.stringLength desc - 9) desc
         else
-          desc;
+          name;
       getSubModules = modules;
       substSubModules =
         m:
