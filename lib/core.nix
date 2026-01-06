@@ -462,8 +462,7 @@ in
 
         Returns the raw `lib.evalModules` result
       '';
-      default =
-        module: extendModules { modules = if builtins.isList module then module else [ module ]; };
+      default = module: extendModules { modules = lib.toList module; };
     };
     extendModules = lib.mkOption {
       type = lib.types.functionTo lib.types.raw;

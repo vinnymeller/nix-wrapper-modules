@@ -7,6 +7,9 @@
   modulesPath,
   maintainers,
 }:
+let
+  inherit (lib) toList;
+in
 {
   inherit
     wrapperModules
@@ -50,7 +53,7 @@
     res;
 
   /**
-    `evalModule = module: wlib.evalModules { modules = if builtins.isList module then module else [ module ]; };`
+    `evalModule = module: wlib.evalModules { modules = lib.toList module; };`
 
     Evaluates the module along with the core options, using `lib.evalModules`
 
@@ -64,8 +67,7 @@
     - Provides `config` for accessing evaluated configuration
     - Provides `options` for introspection and documentation
   */
-  evalModule =
-    module: wlib.evalModules { modules = if builtins.isList module then module else [ module ]; };
+  evalModule = module: wlib.evalModules { modules = toList module; };
 
   /**
     Creates a reusable wrapper module.
@@ -102,13 +104,7 @@
       ```
   */
   wrapModule =
-    module:
-    (wlib.evalModules {
-      modules = [
-        wlib.modules.default
-      ]
-      ++ (if builtins.isList module then module else [ module ]);
-    }).config;
+    module: (wlib.evalModules { modules = [ wlib.modules.default ] ++ (toList module); }).config;
 
   /**
     Imports `wlib.modules.default` then evaluates the module. It then returns the wrapped package.
@@ -123,12 +119,7 @@
   */
   wrapPackage =
     module:
-    (wlib.evalModules {
-      modules = [
-        wlib.modules.default
-      ]
-      ++ (if builtins.isList module then module else [ module ]);
-    }).config.wrapper;
+    (wlib.evalModules { modules = [ wlib.modules.default ] ++ (toList module); }).config.wrapper;
 
   /**
     mkOutOfStoreSymlink :: pkgs -> path -> { out = ...; ... }
