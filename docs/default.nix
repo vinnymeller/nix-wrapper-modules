@@ -69,29 +69,49 @@ let
               } descriptions
             )
           ];
-      get_options = key: mod: builtins.removeAttrs (eval_mod key mod).options corelist;
-      options =
+      get_options = key: mod: {
+        options = builtins.removeAttrs (eval_mod key mod).options corelist;
+        inherit key;
+      };
+      optionsList =
         map (v: get_options v.key v.file) graph
-        ++ lib.optional include_core (
-          builtins.removeAttrs
-            (wlib.evalModule {
-              inherit pkgs;
-              package = lib.mkOverride 9001 pkgs.hello;
-            }).options
-            [ "_module" ]
-        );
-      optdocs = map (v: (nixosOptionsDoc { options = v; }).optionsCommonMark) options;
-      commands = map (v: /* bash */ ''
-        cat ${v} | \
-          sed 's|file://${../.}|https://github.com/BirdeeHub/nix-wrapper-modules/blob/main|g' | \
-          sed 's|${../.}|https://github.com/BirdeeHub/nix-wrapper-modules/blob/main|g' >> $out
-      '') optdocs;
+        ++ lib.optional include_core {
+          key = "lib/core.nix";
+          options =
+            builtins.removeAttrs
+              (wlib.evalModule {
+                inherit pkgs;
+                package = lib.mkOverride 9001 pkgs.hello;
+              }).options
+              [ "_module" ];
+        };
+      mkMsg =
+        key: doc:
+        lib.optionalString (doc.optionsNix != { }) /* bash */ ''
+          echo ${lib.escapeShellArg "## `${lib.removeSuffix "/module.nix" key}`:"} >> $out
+          echo ${lib.escapeShellArg "<details open>"} >> $out
+          echo ${lib.escapeShellArg "  <summary></summary>"} >> $out
+          echo >> $out
+          cat ${doc.optionsCommonMark} | \
+            sed 's|file://${../.}|https://github.com/BirdeeHub/nix-wrapper-modules/blob/main|g' | \
+            sed 's|${../.}|https://github.com/BirdeeHub/nix-wrapper-modules/blob/main|g' >> $out
+          echo >> $out
+          echo ${lib.escapeShellArg "</details>"} >> $out
+          echo >> $out
+        '';
+      commands = map (
+        v:
+        mkMsg v.key (nixosOptionsDoc {
+          inherit (v) options;
+        })
+      ) optionsList;
     in
     pkgs.runCommand "${name}-${prefix}-docs" { } (
       ''
         echo ${lib.escapeShellArg "# `${prefix}${name}`"} > $out
         echo >> $out
         echo ${lib.escapeShellArg module_description.pre} >> $out
+        echo >> $out
         echo >> $out
       ''
       + (builtins.concatStringsSep "\n" commands)
