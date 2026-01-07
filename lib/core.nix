@@ -117,7 +117,7 @@ let
     };
 in
 {
-  config.meta.description = ''
+  config.meta.description = lib.mkOverride 1499 ''
     # Core (builtin) Options set
 
     These are the core options that make everything else possible.
@@ -140,7 +140,7 @@ in
 
     ---
   '';
-  config.meta.maintainers = lib.mkOverride 1001 [ wlib.maintainers.birdee ];
+  config.meta.maintainers = lib.mkOverride 1499 [ wlib.maintainers.birdee ];
   config._module.args.pkgs = config.pkgs;
   options = {
     meta = {
