@@ -111,22 +111,26 @@ let
     let
       result = runCommand "core-wrapper-docs" { } (
         let
+          evaled = wlib.evalModule {
+            inherit pkgs;
+            package = lib.mkOverride 9001 pkgs.hello;
+          };
+          desc = lib.findFirst (v: v.file == (toString wlib.core)) {
+            pre = "";
+            post = "";
+          } evaled.config.meta.description;
           coreopts = nixosOptionsDoc {
-            options =
-              builtins.removeAttrs
-                (wlib.evalModule {
-                  inherit pkgs;
-                  package = lib.mkOverride 9001 pkgs.hello;
-                }).options
-                [ "_module" ];
+            options = builtins.removeAttrs evaled.options [ "_module" ];
           };
         in
         ''
-          echo ${lib.escapeShellArg (builtins.readFile ./core.md)} > $out
+          echo ${lib.escapeShellArg desc.pre} > $out
           echo >> $out
           cat ${coreopts.optionsCommonMark} | \
             sed 's|file://${../.}|https://github.com/BirdeeHub/nix-wrapper-modules/blob/main|g' | \
             sed 's|${../.}|https://github.com/BirdeeHub/nix-wrapper-modules/blob/main|g' >> $out
+          echo >> $out
+          echo ${lib.escapeShellArg desc.post} >> $out
         ''
       );
     in
