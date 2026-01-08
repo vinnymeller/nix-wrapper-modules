@@ -133,13 +133,13 @@ let
             ) baseNoCheck._module.freeformType
           } with main field: `${main_field}` of ${
             optionDescriptionPhrase (class: class == "noun" || class == "composite") (
-              baseNoCheck.${main_field}.type or "<unknown>"
+              baseNoCheck.options.${main_field}.type or "<unknown>"
             )
           }"
         else
           "${name} with main field: `${main_field}` of ${
             optionDescriptionPhrase (class: class == "noun" || class == "composite") (
-              baseNoCheck.${main_field}.type or "<unknown>"
+              baseNoCheck.options.${main_field}.type or "<unknown>"
             )
           }";
       check = {
