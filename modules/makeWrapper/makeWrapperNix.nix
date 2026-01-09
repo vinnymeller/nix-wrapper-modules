@@ -30,10 +30,10 @@ let
     wlib.dag.sortAndUnwrap {
       name = "addFlag";
       dag =
-        lib.optionals (config.addFlag != [ ]) config.addFlag
-        ++ lib.optionals (config.flags != { }) (
+        lib.optionals (config.flags != { }) (
           generateArgsFromFlags (config.flagSeparator or " ") config.flags
-        );
+        )
+        ++ lib.optionals (config.addFlag != [ ]) config.addFlag;
       mapIfOk =
         v:
         let

@@ -94,8 +94,8 @@ let
 
   finalArgs =
     argv0
-    ++ mapargs "addFlag" "add-flag" true
     ++ flags
+    ++ mapargs "addFlag" "add-flag" true
     ++ mapargs "appendFlag" "append-flag" true
     ++ envVars
     ++ envVarsDefault
