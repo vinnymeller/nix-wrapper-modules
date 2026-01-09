@@ -4,7 +4,7 @@
 }:
 
 let
-  jujutsuWrapped = self.wrapperModules.jujutsu.wrap {
+  jujutsuWrapped = self.wrappedModules.jujutsu.wrap {
     inherit pkgs;
     settings = {
       user = {

@@ -17,7 +17,17 @@
     in
     {
       lib = import ./lib { inherit lib; };
-      wrapperModules = lib.mapAttrs (_: v: (self.lib.evalModule v).config) self.lib.wrapperModules;
+      wrappedModules = lib.mapAttrs (_: v: (self.lib.evalModule v).config) self.lib.wrapperModules;
+      wrapperModules = lib.mapAttrs (
+        _: v:
+        lib.warn ''
+          Attention: `wrapperModules` is deprecated, use `wrappedModules` instead
+
+          Apologies for any inconvenience this has caused. But the title `wrapperModules` should be specific to ones you can import.
+
+          In the future, rather than being removed, this will be replaced by the unevaluated wrapper modules from `wlib.wrapperModules`
+        '' (self.lib.evalModule v).config
+      ) self.lib.wrapperModules;
       formatter = forAllSystems (system: (fpkgs system).nixfmt-tree);
       templates = import ./templates;
       checks = forAllSystems (

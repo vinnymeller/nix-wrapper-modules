@@ -4,7 +4,7 @@
 }:
 
 let
-  nushellWrapped = self.wrapperModules.nushell.wrap {
+  nushellWrapped = self.wrappedModules.nushell.wrap {
     inherit pkgs;
   };
 

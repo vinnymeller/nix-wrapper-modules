@@ -5,7 +5,7 @@
 
 let
   helixWrapped =
-    (self.wrapperModules.helix.apply {
+    (self.wrappedModules.helix.apply {
       inherit pkgs;
     }).wrapper;
 

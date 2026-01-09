@@ -16,10 +16,11 @@
       wrapper = wrappers.lib.evalModule module;
     in
     {
-      overlays.default = final: prev: { hello = wrapper.config.wrap { pkgs = prev; }; };
-      wrapperModules = {
-        default = wrapper.config;
+      overlays.default = final: prev: {
+        ${wrapper.config.binName} = wrapper.config.wrap { pkgs = prev; };
       };
+      wrapperModules.default = module;
+      wrappedModules.default = wrapper.config;
       packages = forAllSystems (
         system:
         let

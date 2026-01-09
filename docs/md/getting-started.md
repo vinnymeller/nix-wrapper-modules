@@ -4,7 +4,8 @@ This library provides two main components:
 
 - `lib.evalModule`: Function to create reusable wrapper modules with type-safe configuration options
   - And related, `lib.wrapPackage`: an alias for `evalModule` which returns the package directly and pre-imports the `wlib.modules.default` module for convenience
-- `wrapperModules`: Pre-built wrapper modules for common packages (`tmux`, `wezterm`, etc.)
+- `wrapperModules`: Pre-made wrapper modules for common packages (`tmux`, `wezterm`, etc.)
+- `wrappedModules`: `wrapperModules` output, but partially evaluated for easier access to `.wrap` and other values in the module system.
 
 ## Usage
 
@@ -19,7 +20,7 @@ They will get you started with a module file and the default one also gives you 
   inputs.wrappers.url = "github:BirdeeHub/nix-wrapper-modules";
   outputs = { self, wrappers }: {
     packages.x86_64-linux.default =
-      wrappers.wrapperModules.wezterm.wrap ({ lib, ... }: {
+      wrappers.wrappedModules.wezterm.wrap ({ lib, ... }: {
         pkgs = wrappers.inputs.nixpkgs.legacyPackages.x86_64-linux;
         luaInfo = {
           keys = [
@@ -44,7 +45,7 @@ They will get you started with a module file and the default one also gives you 
     forAllSystems = with nixpkgs.lib; genAttrs platforms.all;
   in {
     packages = forAllSystems (system: {
-      default = wrappers.wrapperModules.mpv.wrap (
+      default = wrappers.wrappedModules.mpv.wrap (
         {config, wlib, lib, pkgs, ...}: {
           pkgs = import nixpkgs { inherit system; };
           scripts = [ pkgs.mpvScripts.mpris ];
@@ -77,7 +78,7 @@ The package (via `passthru`) and the modules under `.config` both offer all 3 fu
 ```nix
 # Apply initial configuration
 # you can use `.eval` `.apply` or `.wrap` for this.
-initialConfig = (wrappers.wrapperModules.tmux.eval ({config, pkgs, ...}{
+initialConfig = (wrappers.wrappedModules.tmux.eval ({config, pkgs, ...}{
   # but if you don't plan to provide pkgs yet, you can't use `.wrap` or `.wrapper` yet.
   # config.pkgs = pkgs;
   # but we can still use `pkgs` before that inside!
