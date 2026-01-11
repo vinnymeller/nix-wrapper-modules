@@ -63,7 +63,7 @@ let
           null;
       dataOptFn =
         if isFunction (settings.dataTypeFn or null) then
-          settings.dataTypeFn elemType
+          args: { type = settings.dataTypeFn elemType args; }
         else
           _: { type = elemType; };
     in
