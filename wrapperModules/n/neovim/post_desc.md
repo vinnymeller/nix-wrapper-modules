@@ -45,6 +45,17 @@ local nixInfo = require(vim.g.nix_info_plugin_name)
 local cat_is_present = nixInfo(false, "info", "cats", "<specs_attribute_name>")
 ```
 
+You could also do similar with
+
+```nix
+options.settings.cats = lib.mkOption {
+  readOnly = true;
+  type = lib.types.attrsOf lib.types.raw;
+  default = builtins.mapAttrs (_: v: v.enable) config.specs;
+};
+# nixInfo(false, "settings", "cats", "<specs_attribute_name>")
+```
+
 ---
 
 - lazy loading
